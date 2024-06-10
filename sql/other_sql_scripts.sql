@@ -1,0 +1,1 @@
+SELECT owner_user_id FROM discord_channels WHERE channel_id = あなたのチャンネルID;

@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 import datetime
+import os
 
 class ArchiveCog(commands.Cog):
     def __init__(self, bot):
@@ -17,17 +18,21 @@ class ArchiveCog(commands.Cog):
             for category in guild.categories:
                 # 特定のカテゴリーを確認する条件をここに設定
                 if category.name == "特定のカテゴリー名":
-                    for channel in category.channels:
-                        # DBに各チャンネルのオーナーを保存するように書き換えること
-                        # DBを確認して、各チャンネルのオーナーの最後のメッセージの日時を取得する
-                        last_message = await channel.history(limit=1).flatten()
-                        if last_message:
-                            last_message_time = last_message[0].created_at
-                            if (now - last_message_time).days >= 30:
-                                # アーカイブ処理
-                                # 特定のアーカイブカテゴリーに移動するなどの処理を追加
-                                await channel.edit(name=f"archived-{channel.name}")
-                                
+                    async with self.bot.db_pool.acquire() as conn:
+                        for channel in category.channels:
+                            # チャンネルIDに基づいてオーナーのユーザーIDを取得
+                            owner_id = await conn.fetchval('SELECT owner_user_id FROM discord_channels WHERE channel_id = $1', channel.id)
+                            if owner_id:
+                                # オーナーの最後のメッセージを取得
+                                owner = guild.get_member(owner_id)
+                                if owner:
+                                    last_message = await owner.history(limit=1).flatten()
+                                    if last_message:
+                                        last_message_time = last_message[0].created_at
+                                        if (now - last_message_time).days >= 14:
+                                            # アーカイブ処理
+                                            await channel.edit(category=os.getenv('ARCHIVE_CATEGORY_ID'))
+                                            
     @archive_check.before_loop
     async def before_archive_check(self):
         await self.bot.wait_until_ready()

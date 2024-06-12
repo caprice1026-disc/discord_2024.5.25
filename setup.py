@@ -2,7 +2,6 @@ import asyncio
 import logging
 import logging.handlers
 import os
-
 from typing import List, Optional
 
 import discord
@@ -18,13 +17,16 @@ class CustomBot(commands.Bot):
         db_pool: asyncpg.Pool,  # DB接続プールを保持するための変数
         web_client: ClientSession,
         testing_guild_id: Optional[int] = None,
+        intents: discord.Intents,  # intents を追加
+        prefix: str,  # prefix を追加
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(command_prefix=prefix, intents=intents, *args, **kwargs)  # command_prefix と intents を追加
         self.db_pool = db_pool  # データベースプールをインスタンス変数に格納
         self.web_client = web_client  # HTTPクライアントセッションをインスタンス変数に格納
         self.testing_guild_id = testing_guild_id  # テスト用ギルドID
         self.initial_extensions = initial_extensions  # 起動時にロードする拡張機能
+        self.tree = discord.app_commands.CommandTree(self)  # CommandTree を追加
 
     async def setup_hook(self) -> None:
         # 拡張機能をロードする
@@ -36,6 +38,9 @@ class CustomBot(commands.Bot):
             guild = discord.Object(self.testing_guild_id)
             self.tree.copy_global_to(guild=guild)
             await self.tree.sync(guild=guild)
+
+        # 全体のコマンドを同期
+        await self.tree.sync()  # Global sync を追加
 
 async def main():
     # ロギング設定
@@ -55,15 +60,17 @@ async def main():
     # HTTPセッションとデータベースプールを非同期で管理
     async with ClientSession() as our_client, asyncpg.create_pool(dsn=os.environ['DATABASE_URL'], command_timeout=30) as pool:
         exts = ['general', 'mod', 'dice']  # 起動時にロードする拡張機能
-        intents = discord.Intents.default()
-        intents.message_content = True  # メッセージ内容の読み取りを有効にする
+        intents = discord.Intents.all()  # 全てのインテンツを有効にする
+        prefix = "/"  # プレフィックスを設定
+
         async with CustomBot(
-            commands.when_mentioned,  # メンション時にコマンドを有効にする
+            initial_extensions=exts,
             db_pool=pool,
             web_client=our_client,
-            initial_extensions=exts,
-            intents=intents,
+            testing_guild_id=None,  # 必要に応じてテストギルドIDを設定
+            intents=intents,  # intents を渡す
+            prefix=commands.when_mentioned_or(prefix),  # prefix を渡す
         ) as bot:
-            await bot.start('token')  # ボットを起動
+            await bot.start(os.getenv('API_KEY'))  # ボットを起動
 
 asyncio.run(main())

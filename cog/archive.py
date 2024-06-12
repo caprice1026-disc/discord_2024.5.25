@@ -32,6 +32,8 @@ class ArchiveCog(commands.Cog):
                                         if (now - last_message_time).days >= 14:
                                             # アーカイブ処理
                                             await channel.edit(category=os.getenv('ARCHIVE_CATEGORY_ID'))
+                                            # ロギングを追加
+                                            print(f'{channel.name}をアーカイブしました。')
                                             
     @archive_check.before_loop
     async def before_archive_check(self):

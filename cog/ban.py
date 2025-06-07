@@ -1,34 +1,30 @@
 import discord
-from discord.ext import tasks, commands
-import asyncpg
+from discord.ext import commands
+
 import config
 
+
 class BanCog(commands.Cog):
-    def __init__(self, bot):
+    """スパム検知とBAN処理を行うCog"""
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.check_messages.start()
 
-    def cog_unload(self):
-        self.check_messages.cancel()
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message) -> None:
+        if message.author.bot:
+            return
+        if "https://discord.gg/" in message.content:
+            roles = [role.id for role in getattr(message.author, "roles", [])]
+            if config.BAN_ALLOW_ROLE_ID not in roles:
+                await message.delete()
+                await message.author.ban(reason="スパム検出")
+                async with self.bot.db_pool.acquire() as conn:
+                    await conn.execute(
+                        "INSERT INTO user_warnings (user_id, message_content) VALUES ($1, $2)",
+                        message.author.id,
+                        message.content,
+                    )
 
-    @tasks.loop(seconds=10.0)  # 10秒ごとに実行
-    async def check_messages(self):
-        for guild in self.bot.guilds:
-            for channel in guild.text_channels:
-                async for message in channel.history(limit=100):
-                    if "https://discord.gg/" in message.content:
-                        roles = [role.id for role in message.author.roles]
-                        if config.BAN_ALLOW_ROLE_ID not in roles:
-                            await message.delete()
-                            await message.author.ban()
-                            # ユーザーのIDをDBに控える（非同期版）
-                            async with self.bot.db_pool.acquire() as conn:
-                                await conn.execute("INSERT INTO user_warnings (user_id, message_content) VALUES ($1, $2)", message.author.id, message.content)
-
-    @check_messages.before_loop
-    async def before_check_messages(self):
-        await self.bot.wait_until_ready()
-
-async def setup(bot):
+async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(BanCog(bot))
-

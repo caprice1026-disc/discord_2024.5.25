@@ -1,20 +1,19 @@
+"""Discord Bot エントリーポイント"""
 import asyncio
 import logging
 import logging.handlers
 import os
+
+import discord
 from aiohttp import ClientSession
 import asyncpg
 from discord.ext import commands
-import config  # 設定ファイルをインポート
+
+import config
+
 
 class CustomBot(commands.Bot):
-    def __init__(
-        self,
-        *args,
-        db_pool: asyncpg.Pool,
-        web_client: ClientSession,
-        **kwargs,
-    ):
+    def __init__(self, *args, db_pool: asyncpg.Pool, web_client: ClientSession, **kwargs) -> None:
         super().__init__(command_prefix=commands.when_mentioned_or(config.prefix), intents=config.intents, *args, **kwargs)
         self.db_pool = db_pool
         self.web_client = web_client
@@ -31,25 +30,26 @@ class CustomBot(commands.Bot):
             await self.tree.sync(guild=guild)
         await self.tree.sync()
 
-async def main():
-    logger = logging.getLogger('discord')
+
+async def main() -> None:
+    logger = logging.getLogger("discord")
     logger.setLevel(logging.INFO)
     handler = logging.handlers.RotatingFileHandler(
-        filename='discord.log',
-        encoding='utf-8',
+        filename="discord.log",
+        encoding="utf-8",
         maxBytes=32 * 1024 * 1024,
         backupCount=5,
     )
-    dt_fmt = '%Y-%m-%d %H:%M:%S'
-    formatter = logging.Formatter('[{asctime}] [{levelname:<8}] {name}: {message}', dt_fmt, style='{')
+    dt_fmt = "%Y-%m-%d %H:%M:%S"
+    formatter = logging.Formatter("[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
     async with ClientSession() as our_client, asyncpg.create_pool(dsn=config.DATABASE_URL, command_timeout=30) as pool:
-        async with CustomBot(
-            db_pool=pool,
-            web_client=our_client,
-        ) as bot:
-            await bot.start(os.getenv('API_KEY'))
+        async with CustomBot(db_pool=pool, web_client=our_client) as bot:
+            await bot.start(config.API_KEY)
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+

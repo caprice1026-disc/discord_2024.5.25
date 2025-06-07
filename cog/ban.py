@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 import asyncpg
+import config
 
 class BanCog(commands.Cog):
     def __init__(self, bot):
@@ -17,7 +18,7 @@ class BanCog(commands.Cog):
                 async for message in channel.history(limit=100):
                     if "https://discord.gg/" in message.content:
                         roles = [role.id for role in message.author.roles]
-                        if "特定のロールID" not in roles:
+                        if config.BAN_ALLOW_ROLE_ID not in roles:
                             await message.delete()
                             await message.author.ban()
                             # ユーザーのIDをDBに控える（非同期版）
@@ -28,5 +29,6 @@ class BanCog(commands.Cog):
     async def before_check_messages(self):
         await self.bot.wait_until_ready()
 
-def setup(bot):
-    bot.add_cog(BanCog(bot))
+async def setup(bot):
+    await bot.add_cog(BanCog(bot))
+

@@ -1,44 +1,71 @@
+import datetime
 import discord
 from discord.ext import tasks, commands
-import datetime
+
 import config
 
+
 class ArchiveCog(commands.Cog):
-    def __init__(self, bot):
+    """チャンネルの自動アーカイブ処理を行うCog"""
+
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.archive_check.start()
 
-    def cog_unload(self):
+    def cog_unload(self) -> None:
         self.archive_check.cancel()
 
+    @commands.hybrid_command(name="setowner", description="チャンネルの持ち主を設定します")
+    async def set_owner(self, ctx: commands.Context, channel: discord.TextChannel, owner: discord.Member) -> None:
+        """チャンネルのオーナーをDBに登録"""
+        async with self.bot.db_pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO discord_channels (channel_id, channel_name, owner_name, owner_user_id)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (channel_id)
+                DO UPDATE SET owner_name = EXCLUDED.owner_name, owner_user_id = EXCLUDED.owner_user_id
+                """,
+                channel.id,
+                channel.name,
+                owner.display_name,
+                owner.id,
+            )
+        await ctx.reply(f"{channel.mention} の持ち主を {owner.display_name} に設定しました。")
+
     @tasks.loop(hours=24)
-    async def archive_check(self):
-        now = datetime.datetime.now()
-        for guild in self.bot.guilds:
-            for category in guild.categories:
-                # 特定のカテゴリーを確認する条件をここに設定
-                if category.name == "特定のカテゴリー名":
-                    async with self.bot.db_pool.acquire() as conn:
-                        for channel in category.channels:
-                            # チャンネルIDに基づいてオーナーのユーザーIDを取得
-                            owner_id = await conn.fetchval('SELECT owner_user_id FROM discord_channels WHERE channel_id = $1', channel.id)
-                            if owner_id:
-                                # オーナーの最後のメッセージを取得
-                                owner = guild.get_member(owner_id)
-                                if owner:
-                                    last_message = await owner.history(limit=1).flatten()
-                                    if last_message:
-                                        last_message_time = last_message[0].created_at
-                                        if (now - last_message_time).days >= 14:
-                                            # アーカイブ処理
-                                            await channel.edit(category=config.ARCHIVE_CATEGORY_ID)
-                                            # ロギングを追加
-                                            print(f'{channel.name}をアーカイブしました。')
-                                            
+    async def archive_check(self) -> None:
+        """オーナーが30日以上発言していないチャンネルをアーカイブ"""
+        now = datetime.datetime.now(datetime.timezone.utc)
+        async with self.bot.db_pool.acquire() as conn:
+            records = await conn.fetch("SELECT channel_id, owner_user_id FROM discord_channels")
+        for record in records:
+            channel = self.bot.get_channel(record["channel_id"])
+            if not isinstance(channel, discord.TextChannel):
+                continue
+            owner = channel.guild.get_member(record["owner_user_id"])
+            if not owner:
+                continue
+            last_owner_msg = None
+            async for message in channel.history(limit=100):
+                if message.author.id == owner.id:
+                    last_owner_msg = message
+                    break
+            if not last_owner_msg or (now - last_owner_msg.created_at).days >= 30:
+                if channel.category_id != config.ARCHIVE_CATEGORY_ID:
+                    archive_category = discord.utils.get(channel.guild.categories, id=config.ARCHIVE_CATEGORY_ID)
+                    if archive_category:
+                        await channel.edit(category=archive_category)
+            else:
+                if channel.category_id == config.ARCHIVE_CATEGORY_ID:
+                    # アーカイブ解除: 最初のカテゴリーに戻す
+                    target_category = next((c for c in channel.guild.categories if c.id != config.ARCHIVE_CATEGORY_ID), None)
+                    await channel.edit(category=target_category)
+
     @archive_check.before_loop
-    async def before_archive_check(self):
+    async def before_archive_check(self) -> None:
         await self.bot.wait_until_ready()
 
-async def setup(bot):
-    await bot.add_cog(ArchiveCog(bot))
 
+async def setup(bot: commands.Bot) -> None:
+    await bot.add_cog(ArchiveCog(bot))

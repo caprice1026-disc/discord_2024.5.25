@@ -1,7 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 import datetime
-import os
+import config
 
 class ArchiveCog(commands.Cog):
     def __init__(self, bot):
@@ -31,7 +31,7 @@ class ArchiveCog(commands.Cog):
                                         last_message_time = last_message[0].created_at
                                         if (now - last_message_time).days >= 14:
                                             # アーカイブ処理
-                                            await channel.edit(category=os.getenv('ARCHIVE_CATEGORY_ID'))
+                                            await channel.edit(category=config.ARCHIVE_CATEGORY_ID)
                                             # ロギングを追加
                                             print(f'{channel.name}をアーカイブしました。')
                                             
@@ -39,5 +39,6 @@ class ArchiveCog(commands.Cog):
     async def before_archive_check(self):
         await self.bot.wait_until_ready()
 
-def setup(bot):
-    bot.add_cog(ArchiveCog(bot))
+async def setup(bot):
+    await bot.add_cog(ArchiveCog(bot))
+

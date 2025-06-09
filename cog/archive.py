@@ -1,8 +1,15 @@
 import datetime
+from dataclasses import dataclass
 import discord
 from discord.ext import tasks, commands
 
 import config
+
+
+@dataclass
+class ChannelOwnerRecord:
+    channel_id: int
+    owner_user_id: int
 
 
 class ArchiveCog(commands.Cog):
@@ -21,12 +28,15 @@ class ArchiveCog(commands.Cog):
         async with self.bot.db_pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO discord_channels (channel_id, channel_name, owner_name, owner_user_id)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO discord_channels (channel_id, guild_id, channel_name, owner_name, owner_user_id)
+                VALUES ($1, $2, $3, $4, $5)
                 ON CONFLICT (channel_id)
-                DO UPDATE SET owner_name = EXCLUDED.owner_name, owner_user_id = EXCLUDED.owner_user_id
+                DO UPDATE SET owner_name = EXCLUDED.owner_name,
+                              owner_user_id = EXCLUDED.owner_user_id,
+                              guild_id = EXCLUDED.guild_id
                 """,
                 channel.id,
+                channel.guild.id,
                 channel.name,
                 owner.display_name,
                 owner.id,
@@ -38,12 +48,17 @@ class ArchiveCog(commands.Cog):
         """オーナーが30日以上発言していないチャンネルをアーカイブ"""
         now = datetime.datetime.now(datetime.timezone.utc)
         async with self.bot.db_pool.acquire() as conn:
-            records = await conn.fetch("SELECT channel_id, owner_user_id FROM discord_channels")
+            fetched = await conn.fetch(
+                "SELECT channel_id, owner_user_id FROM discord_channels"
+            )
+        records = [
+            ChannelOwnerRecord(r["channel_id"], r["owner_user_id"]) for r in fetched
+        ]
         for record in records:
-            channel = self.bot.get_channel(record["channel_id"])
+            channel = self.bot.get_channel(record.channel_id)
             if not isinstance(channel, discord.TextChannel):
                 continue
-            owner = channel.guild.get_member(record["owner_user_id"])
+            owner = channel.guild.get_member(record.owner_user_id)
             if not owner:
                 continue
             last_owner_msg = None

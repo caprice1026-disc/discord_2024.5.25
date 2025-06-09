@@ -21,8 +21,9 @@ class BanCog(commands.Cog):
                 await message.author.ban(reason="スパム検出")
                 async with self.bot.db_pool.acquire() as conn:
                     await conn.execute(
-                        "INSERT INTO user_warnings (user_id, message_content) VALUES ($1, $2)",
+                        "INSERT INTO user_warnings (user_id, guild_id, message_content) VALUES ($1, $2, $3)",
                         message.author.id,
+                        message.guild.id if message.guild else 0,
                         message.content,
                     )
 

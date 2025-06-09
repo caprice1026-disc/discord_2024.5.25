@@ -35,7 +35,7 @@ BAN_ALLOW_ROLE_ID=9876543210987
 
 ## データベース初期化
 
-`sql/` ディレクトリにテーブル作成用 SQL が用意されています。PostgreSQL での実行例:
+`sql/` ディレクトリにテーブル作成用 SQL が用意されています。複数サーバーでの運用を想定し `guild_id` 列を追加しています。PostgreSQL での実行例:
 
 ```bash
 psql -f sql/create_discord_channels_table.sql

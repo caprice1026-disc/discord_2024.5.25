@@ -25,7 +25,7 @@
 
 ## データベースについて
 
-Bot は `asyncpg.create_pool` で PostgreSQL などへ接続します。接続情報は `config.DATABASE_URL` で設定できます。テーブル作成用 SQL は `sql/` 配下にまとめています。
+Bot は `SQLAlchemy` の `create_async_engine` でデータベースへ接続します。接続情報は `config.DATABASE_URL` で設定できます。テーブル作成用 SQL は `sql/` 配下にまとめています。
 
 ## テスト
 

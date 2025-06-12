@@ -19,24 +19,24 @@ class SetupCog(commands.Cog):
         ban_role: discord.Role,
     ) -> None:
         """アーカイブ用カテゴリーとBAN除外ロールを登録"""
-        await set_config(self.bot.db_pool, ctx.guild.id, archive_category.id, ban_role.id)
+        await set_config(self.bot.db_engine, ctx.guild.id, archive_category.id, ban_role.id)
         await ctx.reply("設定を保存しました。")
 
     @commands.hybrid_command(name="setarchive", description="アーカイブカテゴリーを設定します")
     @commands.has_guild_permissions(administrator=True)
     async def set_archive(self, ctx: commands.Context, category: discord.CategoryChannel) -> None:
-        await update_archive_category(self.bot.db_pool, ctx.guild.id, category.id)
+        await update_archive_category(self.bot.db_engine, ctx.guild.id, category.id)
         await ctx.reply("アーカイブカテゴリーを更新しました。")
 
     @commands.hybrid_command(name="setbanrole", description="BAN除外ロールを設定します")
     @commands.has_guild_permissions(administrator=True)
     async def set_ban_role(self, ctx: commands.Context, role: discord.Role) -> None:
-        await update_ban_role(self.bot.db_pool, ctx.guild.id, role.id)
+        await update_ban_role(self.bot.db_engine, ctx.guild.id, role.id)
         await ctx.reply("BAN除外ロールを更新しました。")
 
     @commands.hybrid_command(name="showconfig", description="現在の設定を表示します")
     async def show_config(self, ctx: commands.Context) -> None:
-        conf = await fetch_config(self.bot.db_pool, ctx.guild.id)
+        conf = await fetch_config(self.bot.db_engine, ctx.guild.id)
         if conf:
             embed = discord.Embed(title="ギルド設定")
             embed.add_field(name="Archive Category", value=f"<#{conf.archive_category_id}>")

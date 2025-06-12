@@ -1,10 +1,15 @@
 import datetime
 from dataclasses import dataclass
+
 import discord
 from discord.ext import tasks, commands
 
 import config
 from guild_config import fetch_config
+from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+from db import discord_channels
 
 
 @dataclass
@@ -26,40 +31,48 @@ class ArchiveCog(commands.Cog):
     @commands.hybrid_command(name="setowner", description="チャンネルの持ち主を設定します")
     async def set_owner(self, ctx: commands.Context, channel: discord.TextChannel, owner: discord.Member) -> None:
         """チャンネルのオーナーをDBに登録"""
-        async with self.bot.db_pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO discord_channels (channel_id, guild_id, channel_name, owner_name, owner_user_id)
-                VALUES ($1, $2, $3, $4, $5)
-                ON CONFLICT (channel_id)
-                DO UPDATE SET owner_name = EXCLUDED.owner_name,
-                              owner_user_id = EXCLUDED.owner_user_id,
-                              guild_id = EXCLUDED.guild_id
-                """,
-                channel.id,
-                channel.guild.id,
-                channel.name,
-                owner.display_name,
-                owner.id,
+        async with self.bot.db_engine.begin() as conn:
+            stmt = (
+                pg_insert(discord_channels)
+                .values(
+                    channel_id=channel.id,
+                    guild_id=channel.guild.id,
+                    channel_name=channel.name,
+                    owner_name=owner.display_name,
+                    owner_user_id=owner.id,
+                )
+                .on_conflict_do_update(
+                    index_elements=[discord_channels.c.channel_id],
+                    set_={
+                        "owner_name": owner.display_name,
+                        "owner_user_id": owner.id,
+                        "guild_id": channel.guild.id,
+                    },
+                )
             )
+            await conn.execute(stmt)
         await ctx.reply(f"{channel.mention} の持ち主を {owner.display_name} に設定しました。")
 
     @tasks.loop(hours=24)
     async def archive_check(self) -> None:
         """オーナーが30日以上発言していないチャンネルをアーカイブ"""
         now = datetime.datetime.now(datetime.timezone.utc)
-        async with self.bot.db_pool.acquire() as conn:
-            fetched = await conn.fetch(
-                "SELECT channel_id, owner_user_id FROM discord_channels"
+        async with self.bot.db_engine.connect() as conn:
+            result = await conn.execute(
+                select(
+                    discord_channels.c.channel_id,
+                    discord_channels.c.owner_user_id,
+                )
             )
+            rows = result.mappings().all()
         records = [
-            ChannelOwnerRecord(r["channel_id"], r["owner_user_id"]) for r in fetched
+            ChannelOwnerRecord(r["channel_id"], r["owner_user_id"]) for r in rows
         ]
         for record in records:
             channel = self.bot.get_channel(record.channel_id)
             if not isinstance(channel, discord.TextChannel):
                 continue
-            conf = await fetch_config(self.bot.db_pool, channel.guild.id)
+            conf = await fetch_config(self.bot.db_engine, channel.guild.id)
             archive_id = conf.archive_category_id if conf else config.ARCHIVE_CATEGORY_ID
             owner = channel.guild.get_member(record.owner_user_id)
             if not owner:

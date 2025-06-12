@@ -9,6 +9,7 @@
 - `discord.gg` を含むメッセージを検知し、許可ロールを持たないユーザーは削除・BAN
 - BAN したユーザー情報をデータベースに保存し、他コミュニティーと共有可能
 - `ping` コマンドで Bot の応答確認
+- ギルド管理者は `setupguild` コマンドで初期設定を登録可能
 
 ## 環境構築
 
@@ -40,6 +41,7 @@ BAN_ALLOW_ROLE_ID=9876543210987
 ```bash
 psql -f sql/create_discord_channels_table.sql
 psql -f sql/create_user_warnings_table.sql
+psql -f sql/create_guild_configs_table.sql
 ```
 
 ## 実行方法
@@ -49,6 +51,12 @@ python bot.py
 ```
 
 必要に応じて `server.py` を起動すると外部サービスからの稼働チェックに利用できます。
+
+## 管理コマンド
+- `setupguild`: 初期設定をまとめて登録します
+- `setarchive`: アーカイブカテゴリーのみ変更
+- `setbanrole`: BAN除外ロールのみ変更
+- `showconfig`: 現在の設定を表示
 
 ## 開発者向け情報
 

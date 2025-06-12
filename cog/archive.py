@@ -4,6 +4,7 @@ import discord
 from discord.ext import tasks, commands
 
 import config
+from guild_config import fetch_config
 
 
 @dataclass
@@ -58,6 +59,8 @@ class ArchiveCog(commands.Cog):
             channel = self.bot.get_channel(record.channel_id)
             if not isinstance(channel, discord.TextChannel):
                 continue
+            conf = await fetch_config(self.bot.db_pool, channel.guild.id)
+            archive_id = conf.archive_category_id if conf else config.ARCHIVE_CATEGORY_ID
             owner = channel.guild.get_member(record.owner_user_id)
             if not owner:
                 continue
@@ -67,14 +70,14 @@ class ArchiveCog(commands.Cog):
                     last_owner_msg = message
                     break
             if not last_owner_msg or (now - last_owner_msg.created_at).days >= 30:
-                if channel.category_id != config.ARCHIVE_CATEGORY_ID:
-                    archive_category = discord.utils.get(channel.guild.categories, id=config.ARCHIVE_CATEGORY_ID)
+                if channel.category_id != archive_id:
+                    archive_category = discord.utils.get(channel.guild.categories, id=archive_id)
                     if archive_category:
                         await channel.edit(category=archive_category)
             else:
-                if channel.category_id == config.ARCHIVE_CATEGORY_ID:
+                if channel.category_id == archive_id:
                     # アーカイブ解除: 最初のカテゴリーに戻す
-                    target_category = next((c for c in channel.guild.categories if c.id != config.ARCHIVE_CATEGORY_ID), None)
+                    target_category = next((c for c in channel.guild.categories if c.id != archive_id), None)
                     await channel.edit(category=target_category)
 
     @archive_check.before_loop

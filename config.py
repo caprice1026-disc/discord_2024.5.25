@@ -1,7 +1,9 @@
 from typing import List, Optional
 import os
 import discord
-from discord.ext import commands
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ボットの設定
 # cogを追加するたびにここに追加していく
@@ -13,7 +15,8 @@ prefix = "!"
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///:memory:')
 
 # テストギルドID (必要に応じて設定)
-testing_guild_id: Optional[int] = None
+_test_id_str = os.getenv("TESTING_GUILD_ID")
+testing_guild_id: Optional[int] = int(_test_id_str) if _test_id_str else None
 
 # その他環境変数
 ARCHIVE_CATEGORY_ID = int(os.getenv('ARCHIVE_CATEGORY_ID', 0))

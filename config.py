@@ -5,7 +5,7 @@ from discord.ext import commands
 
 # ボットの設定
 # cogを追加するたびにここに追加していく
-initial_extensions: List[str] = ['cog.archive', 'cog.ban', 'cog.general']
+initial_extensions: List[str] = ['cog.archive', 'cog.ban', 'cog.general', 'cog.setup']
 intents = discord.Intents.all()
 prefix = "!"
 

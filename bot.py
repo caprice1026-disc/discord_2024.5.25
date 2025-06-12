@@ -6,16 +6,18 @@ import os
 
 import discord
 from aiohttp import ClientSession
-import asyncpg
+from sqlalchemy.ext.asyncio import AsyncEngine
 from discord.ext import commands
+
+import db
 
 import config
 
 
 class CustomBot(commands.Bot):
-    def __init__(self, *args, db_pool: asyncpg.Pool, web_client: ClientSession, **kwargs) -> None:
+    def __init__(self, *args, db_engine: AsyncEngine, web_client: ClientSession, **kwargs) -> None:
         super().__init__(command_prefix=commands.when_mentioned_or(config.prefix), intents=config.intents, *args, **kwargs)
-        self.db_pool = db_pool
+        self.db_engine = db_engine
         self.web_client = web_client
         self.testing_guild_id = config.testing_guild_id
         self.initial_extensions = config.initial_extensions
@@ -45,9 +47,13 @@ async def main() -> None:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
-    async with ClientSession() as our_client, asyncpg.create_pool(dsn=config.DATABASE_URL, command_timeout=30) as pool:
-        async with CustomBot(db_pool=pool, web_client=our_client) as bot:
-            await bot.start(config.API_KEY)
+    async with ClientSession() as our_client:
+        engine = db.create_engine()
+        try:
+            async with CustomBot(db_engine=engine, web_client=our_client) as bot:
+                await bot.start(config.API_KEY)
+        finally:
+            await engine.dispose()
 
 
 if __name__ == "__main__":
